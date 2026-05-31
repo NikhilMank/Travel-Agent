@@ -18,10 +18,9 @@ def create_llm(temperature: float = 0.7, max_tokens: int = 4096):
     from langchain_aws import ChatBedrock
 
     return ChatBedrock(
-        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        model_id=os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
         temperature=temperature,
         max_tokens=max_tokens,
-        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
     )
 
 

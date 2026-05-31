@@ -44,6 +44,8 @@ class DynamoDBSaver(BaseCheckpointSaver):
         if not items:
             return None
         item = items[0]
+        if "checkpoint" not in item:
+            return None
         checkpoint = json.loads(item["checkpoint"])
         metadata = json.loads(item.get("metadata", "{}"))
         cfg = {
@@ -72,6 +74,8 @@ class DynamoDBSaver(BaseCheckpointSaver):
         )
         results = []
         for item in response.get("Items", []):
+            if "checkpoint" not in item:
+                continue
             checkpoint = json.loads(item["checkpoint"])
             metadata = json.loads(item.get("metadata", "{}"))
             cfg = {
@@ -90,6 +94,7 @@ class DynamoDBSaver(BaseCheckpointSaver):
         config: Dict[str, Any],
         checkpoint: Dict[str, Any],
         metadata: Dict[str, Any],
+        new_versions: Any = None,
     ) -> Dict[str, Any]:
         thread_id = config.get("configurable", {}).get("thread_id")
         if not thread_id:
