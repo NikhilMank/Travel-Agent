@@ -28,6 +28,9 @@ Thumbs.db
 *.db-shm
 *.db-wal
 
+# Local backup
+local-version-app/
+
 # Stale planning docs
 work_flow_agent.md
 backend/agent/subgraphs_old.py
