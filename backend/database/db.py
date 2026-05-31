@@ -1,115 +1,116 @@
-import sqlite3
 import os
+import uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "travel_chats.db")
+import boto3
+from boto3.dynamodb.conditions import Key
 
+CHATS_TABLE = os.getenv("DYNAMODB_CHATS_TABLE", "travel-chats")
+MESSAGES_TABLE = os.getenv("DYNAMODB_MESSAGES_TABLE", "travel-messages")
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
-
-
-def init_db():
-    conn = get_connection()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS chats (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL DEFAULT 'New Chat',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
-    """)
-    conn.commit()
-    conn.close()
+dynamodb = boto3.resource("dynamodb")
+chats_table = dynamodb.Table(CHATS_TABLE)
+messages_table = dynamodb.Table(MESSAGES_TABLE)
 
 
 def create_chat(chat_id: str, title: str = "New Chat") -> Dict[str, Any]:
-    conn = get_connection()
-    now = datetime.utcnow().isoformat()
-    conn.execute(
-        "INSERT INTO chats (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-        (chat_id, title, now, now),
-    )
-    conn.commit()
-    conn.close()
+    now = datetime.now(timezone.utc).isoformat()
+    item = {
+        "chat_id": chat_id,
+        "title": title,
+        "created_at": now,
+        "updated_at": now,
+    }
+    chats_table.put_item(Item=item)
     return {"id": chat_id, "title": title, "created_at": now, "updated_at": now}
 
 
 def list_chats() -> List[Dict[str, Any]]:
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT id, title, updated_at FROM chats ORDER BY updated_at DESC"
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    response = chats_table.scan()
+    items = response.get("Items", [])
+    items.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+    return [
+        {"id": i["chat_id"], "title": i["title"], "updated_at": i["updated_at"]}
+        for i in items
+    ]
 
 
 def get_chat(chat_id: str) -> Optional[Dict[str, Any]]:
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT id, title, created_at, updated_at FROM chats WHERE id = ?",
-        (chat_id,),
-    ).fetchone()
-    conn.close()
-    return dict(row) if row else None
+    response = chats_table.get_item(Key={"chat_id": chat_id})
+    item = response.get("Item")
+    if not item:
+        return None
+    return {
+        "id": item["chat_id"],
+        "title": item["title"],
+        "created_at": item["created_at"],
+        "updated_at": item["updated_at"],
+    }
 
 
 def delete_chat(chat_id: str) -> bool:
-    conn = get_connection()
-    cursor = conn.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
-    deleted = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+    response = chats_table.delete_item(
+        Key={"chat_id": chat_id},
+        ReturnValues="ALL_OLD",
+    )
+    deleted = response.get("Attributes") is not None
+    if deleted:
+        _delete_all_messages(chat_id)
     return deleted
 
 
-def update_chat_title(chat_id: str, title: str):
-    conn = get_connection()
-    now = datetime.utcnow().isoformat()
-    conn.execute(
-        "UPDATE chats SET title = ?, updated_at = ? WHERE id = ?",
-        (title, now, chat_id),
+def _delete_all_messages(chat_id: str):
+    response = messages_table.query(
+        KeyConditionExpression=Key("chat_id").eq(chat_id),
+        ProjectionExpression="chat_id,msg_id",
     )
-    conn.commit()
-    conn.close()
+    items = response.get("Items", [])
+    with messages_table.batch_writer() as batch:
+        for item in items:
+            batch.delete_item(Key={"chat_id": item["chat_id"], "msg_id": item["msg_id"]})
+
+
+def update_chat_title(chat_id: str, title: str):
+    now = datetime.now(timezone.utc).isoformat()
+    chats_table.update_item(
+        Key={"chat_id": chat_id},
+        UpdateExpression="SET #t = :title, updated_at = :now",
+        ExpressionAttributeNames={"#t": "title"},
+        ExpressionAttributeValues={":title": title, ":now": now},
+    )
 
 
 def add_message(chat_id: str, role: str, content: str):
-    conn = get_connection()
-    now = datetime.utcnow().isoformat()
-    conn.execute(
-        "INSERT INTO messages (chat_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-        (chat_id, role, content, now),
+    now = datetime.now(timezone.utc).isoformat()
+    msg_id = str(uuid.uuid4())
+    item = {
+        "chat_id": chat_id,
+        "msg_id": msg_id,
+        "role": role,
+        "content": content,
+        "created_at": now,
+    }
+    messages_table.put_item(Item=item)
+
+    chats_table.update_item(
+        Key={"chat_id": chat_id},
+        UpdateExpression="SET updated_at = :now",
+        ExpressionAttributeValues={":now": now},
     )
-    conn.execute(
-        "UPDATE chats SET updated_at = ? WHERE id = ?",
-        (now, chat_id),
-    )
-    conn.commit()
-    conn.close()
 
 
 def get_messages(chat_id: str) -> List[Dict[str, Any]]:
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT role, content, created_at FROM messages WHERE chat_id = ? ORDER BY id ASC",
-        (chat_id,),
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    response = messages_table.query(
+        KeyConditionExpression=Key("chat_id").eq(chat_id),
+        ScanIndexForward=True,
+    )
+    items = response.get("Items", [])
+    return [
+        {
+            "role": i["role"],
+            "content": i["content"],
+            "created_at": i["created_at"],
+        }
+        for i in items
+    ]
