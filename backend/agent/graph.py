@@ -1,10 +1,10 @@
 import json
-import sqlite3
 from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import HumanMessage, AIMessage
+
+from .dynamodb_checkpoint import DynamoDBSaver
 
 from .state import AgentState
 from .nodes import orchestrator_node, worker_node, reducer_node
@@ -33,9 +33,7 @@ def create_agent() -> StateGraph:
     graph.add_edge("orchestrator", "reducer")
     graph.add_edge("reducer", END)
 
-    # Use SQLite for persistent checkpointing
-    conn = sqlite3.connect("travel_agent_checkpoints.db", check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
+    checkpointer = DynamoDBSaver()
     return graph.compile(checkpointer=checkpointer)
 
 
