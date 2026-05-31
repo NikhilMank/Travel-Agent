@@ -4,8 +4,15 @@ FastAPI application entry point for the Travel Agent.
 This is the main module that runs the web server.
 """
 
+import sys
 import os
 from pathlib import Path
+
+# Add deps subdirectory to path if it exists (Lambda deployment structure)
+_deps_path = os.path.join(os.path.dirname(__file__), "..", "deps")
+if os.path.isdir(_deps_path):
+    sys.path.insert(0, _deps_path)
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

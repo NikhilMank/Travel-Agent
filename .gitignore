@@ -31,6 +31,11 @@ Thumbs.db
 # Local backup
 local-version-app/
 
+# Lambda Package
+lambda-package/
+lambda-deploy.zip
+
 # Stale planning docs
 work_flow_agent.md
 backend/agent/subgraphs_old.py
+travel-agent.zip
