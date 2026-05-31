@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from .api.routes import router
+from .database.db import init_db
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent / ".env"
@@ -25,6 +26,10 @@ app = FastAPI(
     description="AI-powered travel agent using LangGraph and LangChain",
     version="1.0.0",
 )
+
+@app.on_event("startup")
+async def startup():
+    init_db()
 
 # Add CORS middleware to allow frontend to communicate
 app.add_middleware(

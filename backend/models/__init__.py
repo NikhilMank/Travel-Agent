@@ -7,6 +7,10 @@ from .schemas import (
     Message,
     ChatRequest,
     ChatResponse,
+    ChatMetadata,
+    ChatCreateResponse,
+    ChatMessageResponse,
+    ChatDetailResponse,
 )
 
 __all__ = [
@@ -14,4 +18,8 @@ __all__ = [
     "Message",
     "ChatRequest",
     "ChatResponse",
+    "ChatMetadata",
+    "ChatCreateResponse",
+    "ChatMessageResponse",
+    "ChatDetailResponse",
 ]
