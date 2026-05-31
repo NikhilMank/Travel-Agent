@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 
 st.set_page_config(page_title="Travel Agent", page_icon="✈️", layout="wide")
 
+
+
 API_BASE = "http://localhost:8000/api"
 
 
@@ -113,12 +115,28 @@ if "chat_list" not in st.session_state:
     st.session_state.chat_list = []
     refresh_chat_list()
 
+if st.session_state.session_id is None:
+    if st.session_state.chat_list:
+        load_chat(st.session_state.chat_list[0]["id"])
+    else:
+        initialize_chat()
+        resp = api_post("/chat/welcome")
+        if resp:
+            st.session_state.messages.append(
+                {"role": "assistant", "content": resp["response"]}
+            )
+
 
 with st.sidebar:
     st.title("✈️ Travel Agent")
 
     if st.button("+ New Chat", use_container_width=True, type="secondary"):
         if initialize_chat():
+            resp = api_post("/chat/welcome")
+            if resp:
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": resp["response"]}
+                )
             st.rerun()
 
     st.divider()
@@ -137,7 +155,7 @@ with st.sidebar:
                     load_chat(chat_id)
                     st.rerun()
             with col2:
-                if st.button("🗑️", key=f"del_{chat_id}", help="Delete"):
+                if st.button("✕", key=f"del_{chat_id}", help="Delete chat"):
                     delete_chat(chat_id)
 
 st.title("Travel Agent")
