@@ -23,6 +23,11 @@ Thumbs.db
 # Streamlit
 *.streamlit/
 
+# Runtime databases
+*.db
+*.db-shm
+*.db-wal
+
 # Stale planning docs
 work_flow_agent.md
 backend/agent/subgraphs_old.py
