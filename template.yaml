@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Description: Travel Agent - AI-powered trip planner
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 120
+    MemorySize: 512
+    Environment:
+      Variables:
+        DYNAMODB_CHATS_TABLE: !Ref ChatsTable
+        DYNAMODB_MESSAGES_TABLE: !Ref MessagesTable
+        DYNAMODB_CHECKPOINTS_TABLE: !Ref CheckpointsTable
+        AWS_DEFAULT_REGION: !Ref AWS::Region
+
+Resources:
+  TravelAgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./backend/
+      Handler: main.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ChatsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MessagesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CheckpointsTable
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /api/{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          TAVILY_API_KEY: !If HasTavilyKey, !Ref TavilyApiKey, ""
+
+  TravelAgentApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - DELETE
+          - PATCH
+        AllowHeaders:
+          - "*"
+
+  ChatsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: travel-chats
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: chat_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: chat_id
+          KeyType: HASH
+
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: travel-messages
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: chat_id
+          AttributeType: S
+        - AttributeName: msg_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: chat_id
+          KeyType: HASH
+        - AttributeName: msg_id
+          KeyType: RANGE
+
+  CheckpointsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: travel-checkpoints
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: thread_id
+          AttributeType: S
+        - AttributeName: checkpoint_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: thread_id
+          KeyType: HASH
+        - AttributeName: checkpoint_id
+          KeyType: RANGE
+
+Parameters:
+  TavilyApiKey:
+    Type: String
+    Description: API key for Tavily web search (optional, leave empty to use DuckDuckGo fallback)
+    Default: ""
+
+Conditions:
+  HasTavilyKey: !Not [!Equals [!Ref TavilyApiKey, ""]]
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${TravelAgentApi}.execute-api.${AWS::Region}.amazonaws.com"
+  LambdaFunctionName:
+    Description: Lambda function name
+    Value: !Ref TravelAgentFunction
