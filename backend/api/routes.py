@@ -44,7 +44,13 @@ async def welcome():
 async def create_new_chat():
     import uuid
     chat_id = str(uuid.uuid4())
-    return create_chat(chat_id)
+    result = create_chat(chat_id)
+    add_message(
+        chat_id,
+        "assistant",
+        "Hi! I'm your travel agent assistant. I'll help you plan your perfect trip. Where would you like to go?"
+    )
+    return result
 
 
 @router.get("/chats", response_model=list[ChatMetadata])

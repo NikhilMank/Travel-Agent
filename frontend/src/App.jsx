@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react"
-import { getChats, createChat, getChat, deleteChat, sendMessage, getWelcome } from "./api"
+import { getChats, createChat, getChat, deleteChat, sendMessage } from "./api"
 import "./App.css"
 
 function relativeTime(iso) {
@@ -63,10 +63,7 @@ export default function App() {
   async function newChat() {
     try {
       const chat = await createChat()
-      setActiveChatId(chat.id)
-      setMessages([])
-      const welcome = await getWelcome()
-      setMessages([{ role: "assistant", content: welcome.response }])
+      await loadChat(chat.id)
       const chatList = await getChats()
       setChats(chatList)
     } catch (e) {

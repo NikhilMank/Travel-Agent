@@ -34,8 +34,4 @@ export async function sendMessage(message, sessionId) {
   return r.json()
 }
 
-export async function getWelcome() {
-  const r = await fetch(`${API_BASE}/chat/welcome`, { method: "POST" })
-  if (!r.ok) throw new Error("Failed to get welcome")
-  return r.json()
-}
+
