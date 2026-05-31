@@ -1,8 +1,9 @@
 import json
+import sqlite3
 from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import HumanMessage, AIMessage
 
 from .state import AgentState
@@ -32,7 +33,9 @@ def create_agent() -> StateGraph:
     graph.add_edge("orchestrator", "reducer")
     graph.add_edge("reducer", END)
 
-    checkpointer = InMemorySaver()
+    # Use SQLite for persistent checkpointing
+    conn = sqlite3.connect("travel_agent_checkpoints.db", check_same_thread=False)
+    checkpointer = SqliteSaver(conn)
     return graph.compile(checkpointer=checkpointer)
 
 
