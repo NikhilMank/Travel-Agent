@@ -106,6 +106,7 @@ def get_messages(chat_id: str) -> List[Dict[str, Any]]:
         ScanIndexForward=True,
     )
     items = response.get("Items", [])
+    items.sort(key=lambda x: x.get("created_at", ""))
     return [
         {
             "role": i["role"],
