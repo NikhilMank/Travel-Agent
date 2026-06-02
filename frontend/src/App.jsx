@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { getChats, createChat, getChat, deleteChat, sendMessage, syncChat } from "./api"
 import "./App.css"
 
@@ -254,7 +256,15 @@ export default function App() {
                 <div className="avatar">
                   {msg.role === "user" ? "👤" : msg.role === "debug" ? "🔍" : "🤖"}
                 </div>
-                <div className="bubble">{msg.content}</div>
+                <div className="bubble">
+                  {msg.role === "assistant" || msg.role === "debug" ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
+                </div>
               </div>
             ))
           )}
