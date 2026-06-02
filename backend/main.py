@@ -14,14 +14,15 @@ if os.path.isdir(_deps_path):
     sys.path.insert(0, _deps_path)
 
 from dotenv import load_dotenv
+
+# Load .env BEFORE any module imports that read env vars
+env_path = Path(__file__).parent / ".env"
+load_dotenv(env_path)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import router
-
-# Load environment variables from .env file
-env_path = Path(__file__).parent / ".env"
-load_dotenv(env_path)
 
 
 # Create FastAPI app

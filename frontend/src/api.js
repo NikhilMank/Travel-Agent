@@ -34,4 +34,14 @@ export async function sendMessage(message, sessionId) {
   return r.json()
 }
 
+export async function syncChat(chatId, messages) {
+  const r = await fetch(`${API_BASE}/chats/${chatId}/sync`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
+  })
+  if (!r.ok) throw new Error("Failed to sync chat")
+  return r.json()
+}
+
 

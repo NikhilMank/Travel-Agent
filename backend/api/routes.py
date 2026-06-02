@@ -16,7 +16,7 @@ from ..database.db import (
     get_chat,
     delete_chat,
     update_chat_title,
-    add_message,
+    sync_messages,
     get_messages,
 )
 
@@ -44,13 +44,7 @@ async def welcome():
 async def create_new_chat():
     import uuid
     chat_id = str(uuid.uuid4())
-    result = create_chat(chat_id)
-    add_message(
-        chat_id,
-        "assistant",
-        "Hi! I'm your travel agent assistant. I'll help you plan your perfect trip. Where would you like to go?"
-    )
-    return result
+    return create_chat(chat_id)
 
 
 @router.get("/chats", response_model=list[ChatMetadata])
@@ -65,6 +59,21 @@ async def get_chat_detail(chat_id: str):
         raise HTTPException(status_code=404, detail="Chat not found")
     messages = get_messages(chat_id)
     return ChatDetailResponse(**chat, messages=[ChatMessageResponse(**m) for m in messages])
+
+
+@router.post("/chats/{chat_id}/sync")
+async def sync_chat_messages(chat_id: str, body: dict):
+    messages = body.get("messages", [])
+    chat = get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if chat["title"] == "New Chat" and messages:
+        title = messages[0].get("content", "New Chat")[:50]
+        if len(messages[0].get("content", "")) > 50:
+            title += "..."
+        update_chat_title(chat_id, title)
+    sync_messages(chat_id, messages)
+    return {"ok": True}
 
 
 @router.delete("/chats/{chat_id}")
@@ -125,9 +134,6 @@ async def chat(request: ChatRequest):
                 worker_sources.append(f"{w.replace('_worker', '').replace('_', ' ').title()}: {source}")
 
         chat_id = request.session_id
-
-        add_message(chat_id, "user", request.message)
-        add_message(chat_id, "assistant", response_text)
 
         chat_obj = get_chat(chat_id)
         if chat_obj and chat_obj["title"] == "New Chat":

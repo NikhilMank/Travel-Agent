@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react"
-import { getChats, createChat, getChat, deleteChat, sendMessage } from "./api"
+import { getChats, createChat, getChat, deleteChat, sendMessage, syncChat } from "./api"
 import "./App.css"
+
+const WELCOME = "Hi! I'm your travel agent assistant. I'll help you plan your perfect trip. Where would you like to go?"
 
 function relativeTime(iso) {
   if (!iso) return ""
@@ -25,12 +27,54 @@ export default function App() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const messagesEnd = useRef(null)
+  const dirtyRef = useRef(false)
+  const activeChatIdRef = useRef(null)
+  const messagesRef = useRef([])
 
   const scrollToBottom = useCallback(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" })
   }, [])
 
   useEffect(scrollToBottom, [messages, scrollToBottom])
+
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId
+  }, [activeChatId])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  async function syncCurrentChat() {
+    if (!dirtyRef.current || !activeChatIdRef.current) return
+    const msgs = messagesRef.current
+    if (msgs.length === 0) return
+    try {
+      await syncChat(activeChatIdRef.current, msgs)
+      dirtyRef.current = false
+    } catch (e) {
+      console.error("Sync failed:", e)
+    }
+  }
+
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (!dirtyRef.current || !activeChatIdRef.current) return
+      const msgs = messagesRef.current
+      if (msgs.length === 0) return
+      fetch(
+        `https://lmccfnmydj.execute-api.eu-central-1.amazonaws.com/api/chats/${activeChatIdRef.current}/sync`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: msgs.map((m) => ({ role: m.role, content: m.content })) }),
+          keepalive: true,
+        }
+      ).catch(() => {})
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [])
 
   useEffect(() => {
     ;(async () => {
@@ -50,11 +94,19 @@ export default function App() {
     })()
   }, [])
 
+  function markDirty() {
+    dirtyRef.current = true
+  }
+
   async function loadChat(chatId) {
     try {
       const data = await getChat(chatId)
       setActiveChatId(data.id)
-      setMessages(data.messages.map((m) => ({ role: m.role, content: m.content })))
+      activeChatIdRef.current = data.id
+      const msgs = data.messages.map((m) => ({ role: m.role, content: m.content }))
+      setMessages(msgs)
+      messagesRef.current = msgs
+      dirtyRef.current = false
     } catch (e) {
       console.error(e)
     }
@@ -62,8 +114,14 @@ export default function App() {
 
   async function newChat() {
     try {
+      await syncCurrentChat()
       const chat = await createChat()
-      await loadChat(chat.id)
+      const msgs = [{ role: "assistant", content: WELCOME }]
+      setActiveChatId(chat.id)
+      activeChatIdRef.current = chat.id
+      setMessages(msgs)
+      messagesRef.current = msgs
+      dirtyRef.current = true
       const chatList = await getChats()
       setChats(chatList)
     } catch (e) {
@@ -74,6 +132,9 @@ export default function App() {
   async function handleDelete(chatId, e) {
     e.stopPropagation()
     try {
+      if (chatId === activeChatId) {
+        await syncCurrentChat()
+      }
       await deleteChat(chatId)
       if (activeChatId === chatId) {
         const chatList = await getChats()
@@ -92,6 +153,12 @@ export default function App() {
     }
   }
 
+  async function handleSelectChat(chatId) {
+    if (chatId === activeChatId) return
+    await syncCurrentChat()
+    await loadChat(chatId)
+  }
+
   async function handleSend(e) {
     e.preventDefault()
     if (!input.trim() || !activeChatId || sending) return
@@ -99,6 +166,7 @@ export default function App() {
     const userMsg = input.trim()
     setInput("")
     setMessages((prev) => [...prev, { role: "user", content: userMsg }])
+    markDirty()
     setSending(true)
 
     try {
@@ -120,6 +188,7 @@ export default function App() {
         })
       }
       setMessages((prev) => [...prev, ...newMessages])
+      markDirty()
       if (response.is_complete) {
         setTimeout(() => alert("🎉 Trip plan ready!"), 100)
       }
@@ -133,11 +202,6 @@ export default function App() {
     } finally {
       setSending(false)
     }
-  }
-
-  async function handleSelectChat(chatId) {
-    if (chatId === activeChatId) return
-    await loadChat(chatId)
   }
 
   if (loading) {

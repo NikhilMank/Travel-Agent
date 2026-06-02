@@ -6,10 +6,11 @@ from datetime import datetime, timezone
 import boto3
 from boto3.dynamodb.conditions import Key
 
+AWS_REGION = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "eu-central-1"))
 CHATS_TABLE = os.getenv("DYNAMODB_CHATS_TABLE", "travel-chats")
 MESSAGES_TABLE = os.getenv("DYNAMODB_MESSAGES_TABLE", "travel-messages")
 
-dynamodb = boto3.resource("dynamodb")
+dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 chats_table = dynamodb.Table(CHATS_TABLE)
 messages_table = dynamodb.Table(MESSAGES_TABLE)
 
@@ -31,7 +32,11 @@ def list_chats() -> List[Dict[str, Any]]:
     items = response.get("Items", [])
     items.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
     return [
-        {"id": i["chat_id"], "title": i["title"], "updated_at": i["updated_at"]}
+        {
+            "id": i["chat_id"],
+            "title": i.get("title", "New Chat"),
+            "updated_at": i.get("updated_at", ""),
+        }
         for i in items
     ]
 
@@ -43,9 +48,9 @@ def get_chat(chat_id: str) -> Optional[Dict[str, Any]]:
         return None
     return {
         "id": item["chat_id"],
-        "title": item["title"],
-        "created_at": item["created_at"],
-        "updated_at": item["updated_at"],
+        "title": item.get("title", "New Chat"),
+        "created_at": item.get("created_at", ""),
+        "updated_at": item.get("updated_at", ""),
     }
 
 
@@ -73,12 +78,39 @@ def _delete_all_messages(chat_id: str):
 
 def update_chat_title(chat_id: str, title: str):
     now = datetime.now(timezone.utc).isoformat()
-    chats_table.update_item(
-        Key={"chat_id": chat_id},
-        UpdateExpression="SET #t = :title, updated_at = :now",
-        ExpressionAttributeNames={"#t": "title"},
-        ExpressionAttributeValues={":title": title, ":now": now},
-    )
+    try:
+        chats_table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET #t = :title, updated_at = :now",
+            ConditionExpression="attribute_exists(chat_id)",
+            ExpressionAttributeNames={"#t": "title"},
+            ExpressionAttributeValues={":title": title, ":now": now},
+        )
+    except chats_table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
+
+
+def sync_messages(chat_id: str, messages: List[Dict[str, str]]):
+    _delete_all_messages(chat_id)
+    now = datetime.now(timezone.utc).isoformat()
+    with messages_table.batch_writer() as batch:
+        for msg in messages:
+            batch.put_item(Item={
+                "chat_id": chat_id,
+                "msg_id": str(uuid.uuid4()),
+                "role": msg["role"],
+                "content": msg["content"],
+                "created_at": now,
+            })
+    try:
+        chats_table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET updated_at = :now",
+            ConditionExpression="attribute_exists(chat_id)",
+            ExpressionAttributeValues={":now": now},
+        )
+    except chats_table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
 
 
 def add_message(chat_id: str, role: str, content: str):
@@ -93,11 +125,15 @@ def add_message(chat_id: str, role: str, content: str):
     }
     messages_table.put_item(Item=item)
 
-    chats_table.update_item(
-        Key={"chat_id": chat_id},
-        UpdateExpression="SET updated_at = :now",
-        ExpressionAttributeValues={":now": now},
-    )
+    try:
+        chats_table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET updated_at = :now",
+            ConditionExpression="attribute_exists(chat_id)",
+            ExpressionAttributeValues={":now": now},
+        )
+    except chats_table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
 
 
 def get_messages(chat_id: str) -> List[Dict[str, Any]]:
