@@ -4,11 +4,60 @@
   box-sizing: border-box;
 }
 
+:root {
+  --bg-primary: #f0f2f5;
+  --bg-secondary: #fff;
+  --bg-tertiary: #f5f5f7;
+  --text-primary: #1a1a2e;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --text-debug: #888;
+  --border-primary: #e8e8ec;
+  --border-secondary: #d0d0d8;
+  --border-light: #e0e0e0;
+  --accent: #667eea;
+  --accent-hover: #5a6fd6;
+  --bubble-user-bg: #667eea;
+  --bubble-user-text: #fff;
+  --bubble-assistant-bg: #fff;
+  --bubble-assistant-border: #e8e8ec;
+  --bubble-debug-bg: #f5f5f7;
+  --code-bg: #f0f0f2;
+  --blockquote-color: #555;
+  --table-header-bg: #f5f5f7;
+  --spinner-border: #e0e0e0;
+}
+
+.dark {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #222236;
+  --text-primary: #e0e0e8;
+  --text-secondary: #a0a0b0;
+  --text-muted: #707080;
+  --text-debug: #9090a0;
+  --border-primary: #2a2a3e;
+  --border-secondary: #333348;
+  --border-light: #3a3a50;
+  --accent: #7b8ff0;
+  --accent-hover: #667eea;
+  --bubble-user-bg: #667eea;
+  --bubble-user-text: #fff;
+  --bubble-assistant-bg: #1e1e32;
+  --bubble-assistant-border: #2a2a3e;
+  --bubble-debug-bg: #1a1a2e;
+  --code-bg: #222236;
+  --blockquote-color: #a0a0b0;
+  --table-header-bg: #222236;
+  --spinner-border: #333348;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #f0f2f5;
-  color: #1a1a2e;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   height: 100vh;
+  transition: background 0.2s, color 0.2s;
 }
 
 #root {
@@ -27,14 +76,14 @@ body {
   justify-content: center;
   height: 100vh;
   gap: 16px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #e0e0e0;
-  border-top-color: #667eea;
+  border: 3px solid var(--spinner-border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -54,14 +103,35 @@ body {
   gap: 16px;
 }
 
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .sidebar-title {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.3px;
 }
 
+.theme-toggle {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+  line-height: 1;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .new-chat-btn {
-  background: #667eea;
+  background: var(--accent);
   color: #fff;
   border: none;
   padding: 10px 16px;
@@ -73,7 +143,7 @@ body {
 }
 
 .new-chat-btn:hover {
-  background: #5a6fd6;
+  background: var(--accent-hover);
 }
 
 .chat-list {
@@ -154,7 +224,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: var(--text-muted);
   font-size: 15px;
 }
 
@@ -173,7 +243,7 @@ body {
 .message.debug {
   align-self: center;
   font-size: 12px;
-  color: #888;
+  color: var(--text-debug);
 }
 
 .avatar {
@@ -197,24 +267,24 @@ body {
 }
 
 .message.user .bubble {
-  background: #667eea;
-  color: #fff;
+  background: var(--bubble-user-bg);
+  color: var(--bubble-user-text);
   border-bottom-right-radius: 4px;
 }
 
 .message:not(.user):not(.debug) .bubble {
-  background: #fff;
-  border: 1px solid #e8e8ec;
+  background: var(--bubble-assistant-bg);
+  border: 1px solid var(--bubble-assistant-border);
   border-bottom-left-radius: 4px;
 }
 
 .message.debug .bubble {
-  background: #f5f5f7;
+  background: var(--bubble-debug-bg);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 12px;
   line-height: 1.5;
-  color: #888;
+  color: var(--text-debug);
 }
 
 .bubble h1, .bubble h2, .bubble h3, .bubble h4 {
@@ -247,31 +317,31 @@ body {
 }
 
 .bubble th, .bubble td {
-  border: 1px solid #d0d0d8;
+  border: 1px solid var(--border-secondary);
   padding: 6px 10px;
   text-align: left;
 }
 
 .bubble th {
-  background: #f5f5f7;
+  background: var(--table-header-bg);
   font-weight: 600;
 }
 
 .bubble hr {
   border: none;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-light);
   margin: 16px 0;
 }
 
 .bubble code {
-  background: #f0f0f2;
+  background: var(--code-bg);
   padding: 2px 5px;
   border-radius: 4px;
   font-size: 13px;
 }
 
 .bubble pre {
-  background: #f5f5f7;
+  background: var(--bg-tertiary);
   padding: 10px 14px;
   border-radius: 8px;
   overflow-x: auto;
@@ -286,7 +356,7 @@ body {
 
 .bubble input[type="checkbox"] {
   margin-right: 6px;
-  accent-color: #667eea;
+  accent-color: var(--accent);
 }
 
 .bubble strong {
@@ -298,37 +368,40 @@ body {
 }
 
 .bubble blockquote {
-  border-left: 3px solid #667eea;
+  border-left: 3px solid var(--accent);
   padding-left: 12px;
   margin: 8px 0;
-  color: #555;
+  color: var(--blockquote-color);
 }
 
 .input-bar {
   display: flex;
   gap: 8px;
   padding: 16px 24px;
-  border-top: 1px solid #e8e8ec;
-  background: #fff;
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .input-bar input {
   flex: 1;
   padding: 10px 14px;
-  border: 1px solid #d0d0d8;
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
   font-size: 14px;
   outline: none;
   transition: border-color 0.2s;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .input-bar input:focus {
-  border-color: #667eea;
+  border-color: var(--accent);
 }
 
 .input-bar button {
   padding: 10px 20px;
-  background: #667eea;
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -339,7 +412,7 @@ body {
 }
 
 .input-bar button:hover:not(:disabled) {
-  background: #5a6fd6;
+  background: var(--accent-hover);
 }
 
 .input-bar button:disabled {

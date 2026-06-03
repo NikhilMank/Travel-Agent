@@ -29,15 +29,30 @@ export default function App() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const messagesEnd = useRef(null)
+  const inputRef = useRef(null)
   const dirtyRef = useRef(false)
   const activeChatIdRef = useRef(null)
   const messagesRef = useRef([])
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("darkMode")
+    if (saved !== null) return saved === "true"
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+  })
 
   const scrollToBottom = useCallback(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" })
   }, [])
 
   useEffect(scrollToBottom, [messages, scrollToBottom])
+
+  useEffect(() => {
+    document.body.classList.toggle("dark", darkMode)
+    localStorage.setItem("darkMode", darkMode)
+  }, [darkMode])
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     activeChatIdRef.current = activeChatId
@@ -205,6 +220,7 @@ export default function App() {
       ])
     } finally {
       setSending(false)
+      inputRef.current?.focus()
     }
   }
 
@@ -220,7 +236,16 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1 className="sidebar-title">Travel Agent</h1>
+        <div className="sidebar-header">
+          <h1 className="sidebar-title">Travel Agent</h1>
+          <button
+            className="theme-toggle"
+            onClick={() => setDarkMode((d) => !d)}
+            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {darkMode ? "☀️" : "🌙"}
+          </button>
+        </div>
         <button className="new-chat-btn" onClick={newChat}>
           + New Chat
         </button>
@@ -274,10 +299,11 @@ export default function App() {
         </div>
         <form className="input-bar" onSubmit={handleSend}>
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="What's your travel plan?"
+            placeholder="Enter your message"
             disabled={sending}
           />
           <button type="submit" disabled={sending || !input.trim()}>
