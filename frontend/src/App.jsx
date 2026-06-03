@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { getChats, createChat, getChat, deleteChat, sendMessage, syncChat } from "./api"
+import { getChats, createChat, getChat, deleteChat, sendMessage, syncChat, API_BASE } from "./api"
 import "./App.css"
 
 const WELCOME = "Hi! I'm your travel agent assistant. I'll help you plan your perfect trip. Where would you like to go?"
@@ -65,11 +65,11 @@ export default function App() {
       const msgs = messagesRef.current
       if (msgs.length === 0) return
       fetch(
-        `https://lmccfnmydj.execute-api.eu-central-1.amazonaws.com/api/chats/${activeChatIdRef.current}/sync`,
+        `${API_BASE}/chats/${activeChatIdRef.current}/sync`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: msgs.map((m) => ({ role: m.role, content: m.content })) }),
+          body: JSON.stringify({ messages: msgs.map((m) => ({ role: m.role, content: m.content, created_at: m.created_at })) }),
           keepalive: true,
         }
       ).catch(() => {})
@@ -105,7 +105,7 @@ export default function App() {
       const data = await getChat(chatId)
       setActiveChatId(data.id)
       activeChatIdRef.current = data.id
-      const msgs = data.messages.map((m) => ({ role: m.role, content: m.content }))
+      const msgs = data.messages.map((m) => ({ role: m.role, content: m.content, created_at: m.created_at }))
       setMessages(msgs)
       messagesRef.current = msgs
       dirtyRef.current = false
@@ -118,7 +118,7 @@ export default function App() {
     try {
       await syncCurrentChat()
       const chat = await createChat()
-      const msgs = [{ role: "assistant", content: WELCOME }]
+      const msgs = [{ role: "assistant", content: WELCOME, created_at: new Date().toISOString() }]
       setActiveChatId(chat.id)
       activeChatIdRef.current = chat.id
       setMessages(msgs)
@@ -167,14 +167,15 @@ export default function App() {
 
     const userMsg = input.trim()
     setInput("")
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }])
+    setMessages((prev) => [...prev, { role: "user", content: userMsg, created_at: new Date().toISOString() }])
     markDirty()
     setSending(true)
 
     try {
       const response = await sendMessage(userMsg, activeChatId)
+      const ts = new Date().toISOString()
       const newMessages = [
-        { role: "assistant", content: response.response },
+        { role: "assistant", content: response.response, created_at: ts },
       ]
       if (response.tool_calls?.length || response.worker_sources?.length) {
         const steps = []
@@ -187,6 +188,7 @@ export default function App() {
         newMessages.push({
           role: "debug",
           content: steps.join("\n"),
+          created_at: ts,
         })
       }
       setMessages((prev) => [...prev, ...newMessages])
@@ -199,7 +201,7 @@ export default function App() {
     } catch (e) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Error: ${e.message}` },
+        { role: "assistant", content: `Error: ${e.message}`, created_at: new Date().toISOString() },
       ])
     } finally {
       setSending(false)
