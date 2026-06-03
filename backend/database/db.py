@@ -92,16 +92,23 @@ def update_chat_title(chat_id: str, title: str):
 
 def sync_messages(chat_id: str, messages: List[Dict[str, str]]):
     _delete_all_messages(chat_id)
-    now = datetime.now(timezone.utc).isoformat()
+    base = datetime.now(timezone.utc).timestamp()
     with messages_table.batch_writer() as batch:
-        for msg in messages:
+        for i, msg in enumerate(messages):
+            raw = msg.get("created_at")
+            if raw:
+                created_at = raw
+            else:
+                created_at = datetime.fromtimestamp(base + i * 0.001, tz=timezone.utc).isoformat()
+            msg_id = f"{created_at}#{i:06d}#{uuid.uuid4()}"
             batch.put_item(Item={
                 "chat_id": chat_id,
-                "msg_id": str(uuid.uuid4()),
+                "msg_id": msg_id,
                 "role": msg["role"],
                 "content": msg["content"],
-                "created_at": now,
+                "created_at": created_at,
             })
+    now = datetime.now(timezone.utc).isoformat()
     try:
         chats_table.update_item(
             Key={"chat_id": chat_id},
@@ -115,7 +122,7 @@ def sync_messages(chat_id: str, messages: List[Dict[str, str]]):
 
 def add_message(chat_id: str, role: str, content: str):
     now = datetime.now(timezone.utc).isoformat()
-    msg_id = str(uuid.uuid4())
+    msg_id = f"{now}#{uuid.uuid4()}"
     item = {
         "chat_id": chat_id,
         "msg_id": msg_id,
@@ -141,13 +148,11 @@ def get_messages(chat_id: str) -> List[Dict[str, Any]]:
         KeyConditionExpression=Key("chat_id").eq(chat_id),
         ScanIndexForward=True,
     )
-    items = response.get("Items", [])
-    items.sort(key=lambda x: x.get("created_at", ""))
     return [
         {
             "role": i["role"],
             "content": i["content"],
             "created_at": i["created_at"],
         }
-        for i in items
+        for i in response.get("Items", [])
     ]
