@@ -9,10 +9,12 @@ from boto3.dynamodb.conditions import Key
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "eu-central-1"))
 CHATS_TABLE = os.getenv("DYNAMODB_CHATS_TABLE", "travel-chats")
 MESSAGES_TABLE = os.getenv("DYNAMODB_MESSAGES_TABLE", "travel-messages")
+USERS_TABLE = os.getenv("DYNAMODB_USERS_TABLE", "travel-users")
 
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 chats_table = dynamodb.Table(CHATS_TABLE)
 messages_table = dynamodb.Table(MESSAGES_TABLE)
+users_table = dynamodb.Table(USERS_TABLE)
 
 
 def create_chat(chat_id: str, title: str = "New Chat") -> Dict[str, Any]:
@@ -156,3 +158,39 @@ def get_messages(chat_id: str) -> List[Dict[str, Any]]:
         }
         for i in response.get("Items", [])
     ]
+
+
+def create_user(email: str, password_hash: str) -> Dict[str, Any]:
+    user_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    item = {
+        "user_id": user_id,
+        "email": email,
+        "password_hash": password_hash,
+        "created_at": now,
+    }
+    users_table.put_item(Item=item)
+    return {"user_id": user_id, "email": email, "created_at": now}
+
+
+def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    response = users_table.query(
+        IndexName="email-index",
+        KeyConditionExpression=Key("email").eq(email),
+    )
+    items = response.get("Items", [])
+    if not items:
+        return None
+    return items[0]
+
+
+def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+    response = users_table.get_item(Key={"user_id": user_id})
+    item = response.get("Item")
+    if not item:
+        return None
+    return {
+        "user_id": item["user_id"],
+        "email": item["email"],
+        "created_at": item.get("created_at", ""),
+    }

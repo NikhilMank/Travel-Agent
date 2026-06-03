@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from ..models.schemas import (
     ChatRequest,
@@ -7,7 +7,12 @@ from ..models.schemas import (
     ChatDetailResponse,
     ChatMessageResponse,
     ChatMetadata,
+    UserCreate,
+    UserLogin,
+    Token,
+    UserResponse,
 )
+from ..auth import hash_password, verify_password, create_token, get_current_user
 from ..agent.graph import compile_agent, run_agent
 from ..agent.nodes import extract_text_from_response
 from ..database.db import (
@@ -18,6 +23,8 @@ from ..database.db import (
     update_chat_title,
     sync_messages,
     get_messages,
+    create_user,
+    get_user_by_email,
 )
 
 router = APIRouter()
@@ -41,19 +48,19 @@ async def welcome():
 
 
 @router.post("/chats", response_model=ChatCreateResponse)
-async def create_new_chat():
+async def create_new_chat(user: dict = Depends(get_current_user)):
     import uuid
     chat_id = str(uuid.uuid4())
     return create_chat(chat_id)
 
 
 @router.get("/chats", response_model=list[ChatMetadata])
-async def get_chat_list():
+async def get_chat_list(user: dict = Depends(get_current_user)):
     return list_chats()
 
 
 @router.get("/chats/{chat_id}", response_model=ChatDetailResponse)
-async def get_chat_detail(chat_id: str):
+async def get_chat_detail(chat_id: str, user: dict = Depends(get_current_user)):
     chat = get_chat(chat_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -62,7 +69,7 @@ async def get_chat_detail(chat_id: str):
 
 
 @router.post("/chats/{chat_id}/sync")
-async def sync_chat_messages(chat_id: str, body: dict):
+async def sync_chat_messages(chat_id: str, body: dict, user: dict = Depends(get_current_user)):
     messages = body.get("messages", [])
     chat = get_chat(chat_id)
     if not chat:
@@ -77,7 +84,7 @@ async def sync_chat_messages(chat_id: str, body: dict):
 
 
 @router.delete("/chats/{chat_id}")
-async def remove_chat(chat_id: str):
+async def remove_chat(chat_id: str, user: dict = Depends(get_current_user)):
     deleted = delete_chat(chat_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -85,7 +92,7 @@ async def remove_chat(chat_id: str):
 
 
 @router.patch("/chats/{chat_id}/title")
-async def rename_chat(chat_id: str, body: dict):
+async def rename_chat(chat_id: str, body: dict, user: dict = Depends(get_current_user)):
     title = body.get("title", "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
@@ -97,7 +104,7 @@ async def rename_chat(chat_id: str, body: dict):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
     try:
         agent = get_agent()
 
@@ -159,3 +166,34 @@ async def chat(request: ChatRequest):
         error_details = traceback.format_exc()
         print(f"Error in chat endpoint: {error_details}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/auth/register", response_model=Token)
+async def register(user: UserCreate):
+    existing = get_user_by_email(user.email)
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed = hash_password(user.password)
+    created = create_user(user.email, hashed)
+    token = create_token(created["user_id"])
+    return Token(access_token=token)
+
+
+@router.post("/auth/login", response_model=Token)
+async def login(user: UserLogin):
+    db_user = get_user_by_email(user.email)
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not verify_password(user.password, db_user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_token(db_user["user_id"])
+    return Token(access_token=token)
+
+
+@router.get("/auth/me", response_model=UserResponse)
+async def get_me(user: dict = Depends(get_current_user)):
+    return UserResponse(
+        user_id=user["user_id"],
+        email=user["email"],
+        created_at=user.get("created_at", ""),
+    )

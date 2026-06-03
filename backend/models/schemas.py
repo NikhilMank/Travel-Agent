@@ -61,3 +61,24 @@ class ChatDetailResponse(BaseModel):
     created_at: str
     updated_at: str
     messages: List[ChatMessageResponse]
+
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    user_id: str
+    email: str
+    created_at: str
