@@ -171,7 +171,6 @@ export default function App() {
   }
 
   async function handleSelectChat(chatId) {
-    if (chatId === activeChatId) return
     await syncCurrentChat()
     await loadChat(chatId)
   }
