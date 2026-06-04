@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { getChats, createChat, getChat, deleteChat, sendMessage, syncChat, API_BASE } from "./api"
+import { getChats, createChat, getChat, deleteChat, sendMessage, syncChat, API_BASE, onAuthError } from "./api"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import ProtectedRoute from "./components/ProtectedRoute"
 import LoginPage from "./pages/LoginPage"
@@ -45,6 +45,13 @@ function ChatApp() {
     if (saved !== null) return saved === "true"
     return window.matchMedia("(prefers-color-scheme: dark)").matches
   })
+
+  useEffect(() => {
+    onAuthError(() => {
+      logout()
+      navigate("/login")
+    })
+  }, [logout, navigate])
 
   const scrollToBottom = useCallback(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" })

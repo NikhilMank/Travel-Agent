@@ -13,10 +13,20 @@ function authHeaders(extra = {}) {
   return headers
 }
 
+let _onAuthError = null
+
+export function onAuthError(cb) {
+  _onAuthError = cb
+}
+
 function handle401(r) {
   if (r.status === 401) {
     localStorage.removeItem("token")
-    window.location.href = "/login"
+    if (_onAuthError) {
+      _onAuthError()
+    } else {
+      window.location.href = "/login"
+    }
     throw new Error("Session expired")
   }
 }

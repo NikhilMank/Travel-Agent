@@ -17,10 +17,11 @@ messages_table = dynamodb.Table(MESSAGES_TABLE)
 users_table = dynamodb.Table(USERS_TABLE)
 
 
-def create_chat(chat_id: str, title: str = "New Chat") -> Dict[str, Any]:
+def create_chat(chat_id: str, user_id: str, title: str = "New Chat") -> Dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     item = {
         "chat_id": chat_id,
+        "user_id": user_id,
         "title": title,
         "created_at": now,
         "updated_at": now,
@@ -29,8 +30,11 @@ def create_chat(chat_id: str, title: str = "New Chat") -> Dict[str, Any]:
     return {"id": chat_id, "title": title, "created_at": now, "updated_at": now}
 
 
-def list_chats() -> List[Dict[str, Any]]:
-    response = chats_table.scan()
+def list_chats(user_id: str) -> List[Dict[str, Any]]:
+    response = chats_table.query(
+        IndexName="user_id-index",
+        KeyConditionExpression=Key("user_id").eq(user_id),
+    )
     items = response.get("Items", [])
     items.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
     return [
@@ -43,10 +47,12 @@ def list_chats() -> List[Dict[str, Any]]:
     ]
 
 
-def get_chat(chat_id: str) -> Optional[Dict[str, Any]]:
+def get_chat(chat_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     response = chats_table.get_item(Key={"chat_id": chat_id})
     item = response.get("Item")
     if not item:
+        return None
+    if item.get("user_id") != user_id:
         return None
     return {
         "id": item["chat_id"],
@@ -56,15 +62,13 @@ def get_chat(chat_id: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def delete_chat(chat_id: str) -> bool:
-    response = chats_table.delete_item(
-        Key={"chat_id": chat_id},
-        ReturnValues="ALL_OLD",
-    )
-    deleted = response.get("Attributes") is not None
-    if deleted:
-        _delete_all_messages(chat_id)
-    return deleted
+def delete_chat(chat_id: str, user_id: str) -> bool:
+    chat = get_chat(chat_id, user_id)
+    if not chat:
+        return False
+    chats_table.delete_item(Key={"chat_id": chat_id})
+    _delete_all_messages(chat_id)
+    return True
 
 
 def _delete_all_messages(chat_id: str):
@@ -78,7 +82,10 @@ def _delete_all_messages(chat_id: str):
             batch.delete_item(Key={"chat_id": item["chat_id"], "msg_id": item["msg_id"]})
 
 
-def update_chat_title(chat_id: str, title: str):
+def update_chat_title(chat_id: str, title: str, user_id: str):
+    chat = get_chat(chat_id, user_id)
+    if not chat:
+        return
     now = datetime.now(timezone.utc).isoformat()
     try:
         chats_table.update_item(
@@ -92,7 +99,10 @@ def update_chat_title(chat_id: str, title: str):
         pass
 
 
-def sync_messages(chat_id: str, messages: List[Dict[str, str]]):
+def sync_messages(chat_id: str, messages: List[Dict[str, str]], user_id: str):
+    chat = get_chat(chat_id, user_id)
+    if not chat:
+        return
     _delete_all_messages(chat_id)
     base = datetime.now(timezone.utc).timestamp()
     with messages_table.batch_writer() as batch:
@@ -145,7 +155,10 @@ def add_message(chat_id: str, role: str, content: str):
         pass
 
 
-def get_messages(chat_id: str) -> List[Dict[str, Any]]:
+def get_messages(chat_id: str, user_id: str) -> List[Dict[str, Any]]:
+    chat = get_chat(chat_id, user_id)
+    if not chat:
+        return []
     response = messages_table.query(
         KeyConditionExpression=Key("chat_id").eq(chat_id),
         ScanIndexForward=True,

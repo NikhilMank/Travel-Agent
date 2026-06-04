@@ -51,41 +51,41 @@ async def welcome():
 async def create_new_chat(user: dict = Depends(get_current_user)):
     import uuid
     chat_id = str(uuid.uuid4())
-    return create_chat(chat_id)
+    return create_chat(chat_id, user_id=user["user_id"])
 
 
 @router.get("/chats", response_model=list[ChatMetadata])
 async def get_chat_list(user: dict = Depends(get_current_user)):
-    return list_chats()
+    return list_chats(user_id=user["user_id"])
 
 
 @router.get("/chats/{chat_id}", response_model=ChatDetailResponse)
 async def get_chat_detail(chat_id: str, user: dict = Depends(get_current_user)):
-    chat = get_chat(chat_id)
+    chat = get_chat(chat_id, user_id=user["user_id"])
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-    messages = get_messages(chat_id)
+    messages = get_messages(chat_id, user_id=user["user_id"])
     return ChatDetailResponse(**chat, messages=[ChatMessageResponse(**m) for m in messages])
 
 
 @router.post("/chats/{chat_id}/sync")
 async def sync_chat_messages(chat_id: str, body: dict, user: dict = Depends(get_current_user)):
     messages = body.get("messages", [])
-    chat = get_chat(chat_id)
+    chat = get_chat(chat_id, user_id=user["user_id"])
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     if chat["title"] == "New Chat" and messages:
         title = messages[0].get("content", "New Chat")[:50]
         if len(messages[0].get("content", "")) > 50:
             title += "..."
-        update_chat_title(chat_id, title)
-    sync_messages(chat_id, messages)
+        update_chat_title(chat_id, title, user_id=user["user_id"])
+    sync_messages(chat_id, messages, user_id=user["user_id"])
     return {"ok": True}
 
 
 @router.delete("/chats/{chat_id}")
 async def remove_chat(chat_id: str, user: dict = Depends(get_current_user)):
-    deleted = delete_chat(chat_id)
+    deleted = delete_chat(chat_id, user_id=user["user_id"])
     if not deleted:
         raise HTTPException(status_code=404, detail="Chat not found")
     return {"ok": True}
@@ -96,10 +96,10 @@ async def rename_chat(chat_id: str, body: dict, user: dict = Depends(get_current
     title = body.get("title", "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
-    chat = get_chat(chat_id)
+    chat = get_chat(chat_id, user_id=user["user_id"])
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
-    update_chat_title(chat_id, title)
+    update_chat_title(chat_id, title, user_id=user["user_id"])
     return {"ok": True}
 
 
@@ -142,12 +142,12 @@ async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
 
         chat_id = request.session_id
 
-        chat_obj = get_chat(chat_id)
+        chat_obj = get_chat(chat_id, user_id=user["user_id"])
         if chat_obj and chat_obj["title"] == "New Chat":
             title = request.message[:50]
             if len(request.message) > 50:
                 title += "..."
-            update_chat_title(chat_id, title)
+            update_chat_title(chat_id, title, user_id=user["user_id"])
 
         print(f"Response: {response_text[:100]}...")
         print(f"Tool calls: {tool_calls}")

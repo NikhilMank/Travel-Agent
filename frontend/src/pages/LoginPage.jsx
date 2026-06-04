@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -8,7 +8,6 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const { login } = useAuth()
-  const navigate = useNavigate()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -16,7 +15,6 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       await login(email, password)
-      navigate("/")
     } catch (err) {
       setError(err.message)
     } finally {

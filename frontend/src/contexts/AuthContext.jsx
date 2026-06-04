@@ -3,6 +3,14 @@ import { API_BASE } from "../api"
 
 const AuthContext = createContext(null)
 
+async function fetchUser(token) {
+  const r = await fetch(`${API_BASE}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!r.ok) throw new Error("Invalid token")
+  return r.json()
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(() => localStorage.getItem("token"))
@@ -10,20 +18,17 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!token) {
+      setUser(null)
       setLoading(false)
       return
     }
-    fetch(`${API_BASE}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("Invalid token")
-        return r.json()
-      })
+    setLoading(true)
+    fetchUser(token)
       .then((data) => setUser(data))
       .catch(() => {
         localStorage.removeItem("token")
         setToken(null)
+        setUser(null)
       })
       .finally(() => setLoading(false))
   }, [token])
@@ -41,6 +46,12 @@ export function AuthProvider({ children }) {
     const data = await r.json()
     localStorage.setItem("token", data.access_token)
     setToken(data.access_token)
+    try {
+      const userData = await fetchUser(data.access_token)
+      setUser(userData)
+    } catch {
+      // token invalid — will be caught by useEffect
+    }
   }
 
   async function register(email, password) {
@@ -56,6 +67,12 @@ export function AuthProvider({ children }) {
     const data = await r.json()
     localStorage.setItem("token", data.access_token)
     setToken(data.access_token)
+    try {
+      const userData = await fetchUser(data.access_token)
+      setUser(userData)
+    } catch {
+      // token invalid — will be caught by useEffect
+    }
   }
 
   function logout() {
