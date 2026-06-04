@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react"
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { getChats, createChat, getChat, deleteChat, sendMessage, syncChat, API_BASE } from "./api"
+import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import ProtectedRoute from "./components/ProtectedRoute"
+import LoginPage from "./pages/LoginPage"
+import RegisterPage from "./pages/RegisterPage"
 import "./App.css"
 
 const WELCOME = "Hi! I'm your travel agent assistant. I'll help you plan your perfect trip. Where would you like to go?"
@@ -21,7 +26,9 @@ function truncate(text, len = 32) {
   return text.slice(0, len).split(" ").slice(0, -1).join(" ") + "..."
 }
 
-export default function App() {
+function ChatApp() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [chats, setChats] = useState([])
   const [activeChatId, setActiveChatId] = useState(null)
   const [messages, setMessages] = useState([])
@@ -62,6 +69,12 @@ export default function App() {
     messagesRef.current = messages
   }, [messages])
 
+  function handleLogout() {
+    syncCurrentChat()
+    logout()
+    navigate("/login")
+  }
+
   async function syncCurrentChat() {
     if (!dirtyRef.current || !activeChatIdRef.current) return
     const msgs = messagesRef.current
@@ -79,11 +92,15 @@ export default function App() {
       if (!dirtyRef.current || !activeChatIdRef.current) return
       const msgs = messagesRef.current
       if (msgs.length === 0) return
+      const token = localStorage.getItem("token")
       fetch(
         `${API_BASE}/chats/${activeChatIdRef.current}/sync`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ messages: msgs.map((m) => ({ role: m.role, content: m.content, created_at: m.created_at })) }),
           keepalive: true,
         }
@@ -245,6 +262,12 @@ export default function App() {
             {darkMode ? "☀️" : "🌙"}
           </button>
         </div>
+        <div className="user-info">
+          <span className="user-email">{user?.email}</span>
+          <button className="logout-btn" onClick={handleLogout} title="Logout">
+            ⏻
+          </button>
+        </div>
         <button className="new-chat-btn" onClick={newChat}>
           + New Chat
         </button>
@@ -311,5 +334,26 @@ export default function App() {
         </form>
       </main>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <ChatApp />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
