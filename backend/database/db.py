@@ -31,11 +31,9 @@ def create_chat(chat_id: str, user_id: str, title: str = "New Chat") -> Dict[str
 
 
 def list_chats(user_id: str) -> List[Dict[str, Any]]:
-    response = chats_table.query(
-        IndexName="user_id-index",
-        KeyConditionExpression=Key("user_id").eq(user_id),
-    )
+    response = chats_table.scan()
     items = response.get("Items", [])
+    items = [i for i in items if i.get("user_id") == user_id]
     items.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
     return [
         {

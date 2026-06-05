@@ -62,6 +62,7 @@ function ChatApp() {
   useEffect(() => {
     document.body.classList.toggle("dark", darkMode)
     localStorage.setItem("darkMode", darkMode)
+    return () => document.body.classList.remove("dark")
   }, [darkMode])
 
   useEffect(() => {
