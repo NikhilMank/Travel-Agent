@@ -8,6 +8,8 @@ Backend: **FastAPI** + **Mangum** running on **Lambda + API Gateway**.
 State: **DynamoDB** for chats, messages, LangGraph checkpoints, and users.
 Auth: **JWT** tokens with bcrypt password hashing, per-user chat isolation.
 
+**Live site:** https://d19oaop2cqby67.cloudfront.net/
+
 ---
 
 ## Overview
