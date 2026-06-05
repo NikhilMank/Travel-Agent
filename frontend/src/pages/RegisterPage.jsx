@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("")
@@ -8,7 +8,12 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const { register } = useAuth()
+  const { register, user } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (user) navigate("/", { replace: true })
+  }, [user, navigate])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -20,6 +25,7 @@ export default function RegisterPage() {
     setSubmitting(true)
     try {
       await register(email, password)
+      navigate("/")
     } catch (err) {
       setError(err.message)
     } finally {
